@@ -1,430 +1,426 @@
 # SD Card Sniffer
 
-Read-only inspectie van SD-kaarten en disk-images, inclusief Linux-filesystems
-die macOS en Windows zelf niet kunnen mounten. Go-backend (Wails v2) met een
-React-frontend.
+**English** · [Nederlands](README.nl.md)
 
-De applicatie opent de kaart altijd read-only en schrijft er nooit naartoe.
+Inspect SD cards and disk images, including the Linux filesystems that macOS
+and Windows cannot mount themselves. Go backend (Wails v2) with a React
+frontend.
 
-**Inhoud:** [Downloaden](#downloaden) · [Installeren](#installeren) ·
-[Gebruiken](#gebruiken) · [Klonen en schrijven](#klonen-en-schrijven) ·
-[Assistent](#assistent) · [Talen](#talen-i18n) · [Zelf bouwen](#zelf-bouwen) ·
-[Een release maken](#een-release-maken) · [Ontwikkelen](#ontwikkelen) ·
-[Opbouw](#opbouw)
+The app opens a card read-only by default; it only writes when you explicitly
+choose to.
 
-## Wat het kan lezen
+**Contents:** [Download](#download) · [Install](#install) · [Usage](#usage) ·
+[Cloning and writing](#cloning-and-writing) · [Assistant](#assistant) ·
+[Languages](#languages-i18n) · [Building from source](#building-from-source) ·
+[Making a release](#making-a-release) · [Development](#development) ·
+[Layout](#layout)
 
-| Filesystem | Bladeren | Opmerking |
+## What it can read
+
+| Filesystem | Browse | Notes |
 |---|---|---|
-| ext2 / ext3 / ext4 | ja | de root-partitie van een Raspberry Pi-kaart |
-| FAT12 / FAT16 / FAT32 | ja | de boot-partitie |
-| ISO 9660 | ja | |
-| SquashFS | ja | |
-| btrfs, XFS, F2FS, NTFS, exFAT, APFS, HFS+ | nee | wordt wel herkend en benoemd |
-| LUKS1 / LUKS2 | nee | versleuteld; ontgrendelen via `cryptsetup` |
-| LVM2 | nee | container; de volumes erbinnen zijn zo niet bereikbaar |
-| Linux swap | n.v.t. | wordt herkend, bevat geen bestanden |
+| ext2 / ext3 / ext4 | yes | the root partition of a Raspberry Pi card |
+| FAT12 / FAT16 / FAT32 | yes | the boot partition |
+| ISO 9660 | yes | |
+| SquashFS | yes | |
+| btrfs, XFS, F2FS, NTFS, exFAT, APFS, HFS+ | no | detected and named |
+| LUKS1 / LUKS2 | no | encrypted; unlock with `cryptsetup` |
+| LVM2 | no | container; the volumes inside are not reachable this way |
+| Linux swap | n/a | detected, contains no files |
 
-Partitietabellen: GPT en MBR. Een kaart zonder partitietabel wordt als één
-volume behandeld.
+Partition tables: GPT and MBR. A card without a partition table is treated as a
+single volume.
 
-## Downloaden
+## Download
 
-Kant-en-klare builds staan op de
-**[Releases-pagina](https://github.com/baslentfert/bbsdcardsniffer/releases/latest)**:
+Ready-made builds are on the
+**[Releases page](https://github.com/baslentfert/bbsdcardsniffer/releases/latest)**:
 
-| Platform | Bestand | |
+| Platform | File | |
 |---|---|---|
-| macOS 10.13+ (Apple Silicon én Intel) | `bbsdcardsniffer-<versie>-macos-universal.dmg` | schijfkopie, slepen naar Programma's |
-| Windows 10/11 (64-bit) | `bbsdcardsniffer-<versie>-windows-amd64-setup.exe` | installer met Start-menu-snelkoppeling |
-| Windows 10/11 (64-bit) | `bbsdcardsniffer-<versie>-windows-amd64.exe` | losse exe, zonder installatie |
+| macOS 10.13+ (Apple Silicon and Intel) | `bbsdcardsniffer-<version>-macos-universal.dmg` | disk image, drag to Applications |
+| Windows 10/11 (64-bit) | `bbsdcardsniffer-<version>-windows-amd64-setup.exe` | installer with Start menu shortcut |
+| Windows 10/11 (64-bit) | `bbsdcardsniffer-<version>-windows-amd64.exe` | standalone exe, no installation |
 
-Linux heeft (nog) geen kant-en-klare build; zie [Zelf bouwen](#zelf-bouwen).
+There is no ready-made Linux build (yet); see
+[Building from source](#building-from-source).
 
-## Installeren
+## Install
 
 ### macOS
 
-1. Open de `.dmg` en sleep **bbsdcardsniffer** naar **Programma's**.
-2. De app is niet ondertekend met een Apple Developer-certificaat, dus de eerste
-   keer weigert macOS hem te openen ("Apple kan niet controleren of deze app
-   vrij is van malware"). Twee manieren om dat eenmalig toe te staan:
-   - Probeer de app te openen, ga dan naar **Systeeminstellingen → Privacy en
-     beveiliging**, scroll naar beneden en klik **Toch openen**; of
+1. Open the `.dmg` and drag **bbsdcardsniffer** to **Applications**.
+2. The app is not signed with an Apple Developer certificate, so the first time
+   macOS refuses to open it ("Apple could not verify this app is free of
+   malware"). Two ways to allow it once:
+   - Try to open the app, then go to **System Settings → Privacy & Security**,
+     scroll down and click **Open Anyway**; or
    - in Terminal:
      ```sh
      xattr -dr com.apple.quarantine /Applications/bbsdcardsniffer.app
      ```
-3. Disk-images openen werkt nu met een dubbelklik. Voor het lezen van een
-   **echte SD-kaart** zijn rootrechten nodig — zie hieronder.
+3. Opening disk images now works with a double-click. Reading a **real SD
+   card** requires root — see below.
 
-Starten met rootrechten (nodig voor `/dev/rdiskN`):
+Starting with root privileges (required for `/dev/rdiskN`):
 
 ```sh
 sudo /Applications/bbsdcardsniffer.app/Contents/MacOS/bbsdcardsniffer
 ```
 
-Zonder `sudo` toont de app de kaarten wel, maar weigert het openen met
-*"geen toestemming om /dev/rdisk4 te lezen"*.
+Without `sudo` the app still lists the cards, but refuses to open them with
+*"no permission to read /dev/rdisk4"*.
 
 ### Windows
 
-1. Start `…-setup.exe`. Omdat de installer niet code-ondertekend is, toont
-   Windows SmartScreen *"Windows heeft uw pc beschermd"*: klik **Meer info →
-   Toch uitvoeren**.
-2. Volg de installer. Er komt een snelkoppeling in het Start-menu en op het
-   bureaublad.
-3. De app vraagt bij elke start om **Administrator**-rechten (UAC). Dat is
-   nodig voor ruwe toegang tot `\\.\PhysicalDriveN`; zonder die rechten zijn
-   kaarten niet te lezen.
+1. Run `…-setup.exe`. Because the installer is not code-signed, Windows
+   SmartScreen shows *"Windows protected your PC"*: click **More info → Run
+   anyway**.
+2. Follow the installer. It adds a shortcut to the Start menu and the desktop.
+3. The app asks for **Administrator** rights (UAC) every time it starts. That
+   is required for raw access to `\\.\PhysicalDriveN`; without it, cards cannot
+   be read.
 
-De losse `.exe` werkt hetzelfde, alleen zonder installatie en snelkoppelingen.
-WebView2 zit in de build ingebakken, dus er hoeft niets extra's geïnstalleerd
-te worden.
+The standalone `.exe` works the same way, just without installation and
+shortcuts. WebView2 is embedded in the build, so nothing else needs to be
+installed.
 
-Verwijderen gaat via **Instellingen → Apps**.
+Uninstall via **Settings → Apps**.
 
-> Het schrijfpad (image → kaart) is op Windows nog niet getest; zie
-> [Klonen en schrijven](#klonen-en-schrijven). Lezen en klonen naar een image
-> zijn niet-destructief en kunnen veilig worden uitgeprobeerd.
+> The write path (image → card) has not been tested on Windows yet; see
+> [Cloning and writing](#cloning-and-writing). Reading and cloning to an image
+> are non-destructive and safe to try.
 
-### Claude API-sleutel (optioneel)
+### Claude API key (optional)
 
-Alleen de [Assistent](#assistent) heeft een sleutel nodig; bladeren, klonen en
-schrijven werken zonder. Maak er een aan op
-[console.anthropic.com](https://console.anthropic.com/settings/keys) en vul hem
-in de app in, of zet hem in je omgeving:
+Only the [Assistant](#assistant) needs a key; browsing, cloning and writing
+work without one. Create one at
+[console.anthropic.com](https://console.anthropic.com/settings/keys) and enter
+it in the app, or set it in your environment:
 
 ```sh
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Een in de app ingevulde sleutel wordt lokaal bewaard, nooit in de app zelf of
-in deze repository:
+A key entered in the app is stored locally — never in the app itself or in
+this repository:
 
-| OS | Locatie |
+| OS | Location |
 |---|---|
 | macOS | `~/Library/Application Support/bbsdcardsniffer/config.json` |
 | Windows | `%AppData%\bbsdcardsniffer\config.json` |
 | Linux | `~/.config/bbsdcardsniffer/config.json` |
 
-De omgevingsvariabele heeft voorrang op het bestand. Gebruik van de assistent
-wordt afgerekend op jouw Anthropic-account.
+The environment variable takes precedence over the file. Assistant usage is
+billed to your own Anthropic account.
 
-## Gebruiken
+## Usage
 
-Ruwe schijftoegang vereist verhoogde rechten (zie [Installeren](#installeren)).
-Optioneel meteen een apparaat of image openen door het als argument mee te
-geven:
+Raw disk access requires elevated privileges (see [Install](#install)).
+Optionally open a device or image right away by passing it as an argument:
 
 ```sh
 # macOS
 sudo /Applications/bbsdcardsniffer.app/Contents/MacOS/bbsdcardsniffer /dev/disk4
 /Applications/bbsdcardsniffer.app/Contents/MacOS/bbsdcardsniffer ~/dumps/card.img
 
-# Windows (vanuit een prompt als Administrator)
+# Windows (from an Administrator prompt)
 "C:\Program Files\Bas Lentfert\SD Card Sniffer\bbsdcardsniffer.exe" \\.\PhysicalDrive2
 
 # Linux
 sudo ./build/bin/bbsdcardsniffer /dev/sdb
 ```
 
-Een image-bestand (bijvoorbeeld een `dd`-dump) heeft geen root nodig en is ook
-via de knop **Disk-image openen…** te kiezen.
+An image file (for example a `dd` dump) does not need root and can also be
+picked with the **Open disk image…** button.
 
-Op macOS moet een gemounte kaart eerst worden ontkoppeld. De knop
-**Ontkoppelen** naast het apparaat doet dat via `diskutil unmountDisk`; de
-kaart blijft daarna gewoon in de reader zitten.
+On macOS a mounted card must be unmounted first. The **Unmount** button next to
+the device does that via `diskutil unmountDisk`; the card stays in the reader.
 
-## Klonen en schrijven
+## Cloning and writing
 
-Naast bladeren heeft de app een **Kopiëren**-modus met twee richtingen.
+Besides browsing, the app has a **Copy** mode that works in two directions.
 
-**Kopiëren naar een image.** Leest uit naar een bestand; het origineel blijft
-ongewijzigd. De bron is het medium dat open staat — een kaart óf een geopend
-image, zodat je ook een kopie van een kopie kunt maken. Opties:
+**Copy to an image.** Reads out to a file; the original is left untouched. The
+source is whatever medium is open — a card or an opened image, so you can also
+make a copy of a copy. Options:
 
-- *Stoppen na de laatste partitie* — scheelt het lege staartstuk van een kaart
-  waarvan de rootfs nog niet is uitgerekt. Bij GPT waarschuwt de app dat de
-  reserve-partitietabel dan buiten het image valt (`gdisk` herstelt die).
-- *Comprimeren* naar gzip.
-- *Verifiëren* — leest het image terug en vergelijkt de SHA-256 met wat er van
-  de kaart kwam.
+- *Stop after the last partition* — skips the empty tail of a card whose rootfs
+  has not been expanded yet. With GPT the app warns that the backup partition
+  table then falls outside the image (`gdisk` repairs it).
+- *Compress* to gzip.
+- *Verify afterwards* — reads the image back and compares its SHA-256 with what
+  came off the card.
 
-**Image → kaart (schrijven).** Het doel is altijd de kaart die links
-geselecteerd staat; een geopend image kan alleen de bron zijn. Overschrijft de
-kaart volledig.
+**Image → card (writing).** The target is always the card selected on the left;
+an opened image can only be the source. Overwrites the card completely.
 
-Voor het schrijven wordt de doelkaart uitgelezen en getoond wat erop staat:
-partitietabel, volumes, filesystem en label. Is de kaart niet leeg, dan noemt de
-bevestiging bij naam wat er verdwijnt — *"Ik weet dat disk4 gewist wordt,
-inclusief boot, rootfs"* — in plaats van naar een anoniem apparaat te vragen.
-Een kaart die niet uitgelezen kan worden wordt niet als leeg gepresenteerd maar
-als onleesbaar, met de waarschuwing dat er hoe dan ook gewist wordt.
+Before writing, the target card is read and its contents are shown: partition
+table, volumes, filesystem and label. If the card is not empty, the
+confirmation names what will be lost — *"I understand that disk4 will be
+erased, including boot, rootfs"* — instead of asking about an anonymous device.
+A card that cannot be read is not presented as empty but as unreadable, with
+the warning that it will be erased regardless.
 
-Past het image niet op de kaart, dan wordt de knop geblokkeerd voordat er iets
-gebeurt — voor zover de grootte vooraf te kennen is. Een onbewerkt image en een
-zip weten dat; xz en gzip niet (gzip bewaart de lengte modulo 4 GiB, precies in
-het bereik waar het antwoord ertoe doet), dus daar valt de controle terug op het
-schrijfmoment zelf. Ondersteunt
-onbewerkte images en `.gz`, `.xz`, `.bz2` en `.zip`; het formaat wordt aan de
-inhoud herkend, niet aan de extensie, zodat een hernoemd bestand niet rauw naar
-de kaart gaat.
+If the image does not fit on the card, the button is blocked before anything
+happens — as far as the size can be known up front. A raw image and a zip know
+it; xz and gzip do not (gzip stores the length modulo 4 GiB, exactly in the
+range where the answer matters), so there the check falls back to the moment of
+writing. Supports raw images and `.gz`, `.xz`, `.bz2` and `.zip`; the format is
+detected from the contents, not the extension, so a renamed file is never
+written raw to the card.
 
-Schrijven is met opzet streng afgeschermd:
+Writing is deliberately locked down:
 
-- `internal/imaging` weigert elk doel dat niet als verwisselbaar in de
-  schijflijst staat, en weigert ook een doel dat er helemaal niet in staat.
-  Dat is een harde weigering in de backend, niet een dialoog in de UI.
-- De kaart wordt eerst ontkoppeld (macOS `diskutil unmountDisk`, Linux
-  `umount`, Windows `FSCTL_LOCK_VOLUME` + `FSCTL_DISMOUNT_VOLUME`).
-- De UI vraagt om een expliciete bevestiging waarin het doelapparaat bij naam
-  wordt genoemd; die bevestiging vervalt zodra je een andere kaart kiest.
-- Een ongeldig doel wordt geweigerd vóórdat er iets wordt afgebroken, zodat een
-  vergissing je geopende schijf niet kost.
-- Na afloop wordt de kaart op macOS uitgeworpen, zodat de flush zeker klaar is
-  voordat hij eruit kan.
+- `internal/imaging` refuses any target that is not listed as removable in the
+  disk list, and also refuses a target that is not in the list at all. That is
+  a hard refusal in the backend, not a dialog in the UI.
+- The card is unmounted first (macOS `diskutil unmountDisk`, Linux `umount`,
+  Windows `FSCTL_LOCK_VOLUME` + `FSCTL_DISMOUNT_VOLUME`).
+- The UI asks for an explicit confirmation that names the target device; that
+  confirmation is reset as soon as you pick a different card.
+- An invalid target is refused before anything is torn down, so a mistake does
+  not cost you the disk you had open.
+- When done, the card is ejected on macOS, so the flush is guaranteed to be
+  complete before it can be removed.
 
-Beide richtingen zijn te annuleren en tonen doorvoer en resterende tijd.
+Both directions can be cancelled and show throughput and time remaining.
 
-> Het schrijfpad op **Windows** is geschreven volgens de gedocumenteerde
-> lock/dismount-volgorde maar is niet op Windows getest — er was geen Windows
-> machine beschikbaar. macOS en Linux volgen hetzelfde patroon met `diskutil`
-> respectievelijk `umount`.
+> The write path on **Windows** follows the documented lock/dismount sequence
+> but has not been tested on Windows — no Windows machine was available. macOS
+> and Linux follow the same pattern with `diskutil` and `umount` respectively.
 
-## Assistent
+## Assistant
 
-Een derde modus zet een Claude-agent op het geopende volume. Je stelt een vraag
-in gewone taal — "zoek in /var/log waarom het netwerk niet opkwam" — en het
-model roept zelf de tools aan die het nodig heeft. Dat patroon heet *tool use*;
-de lus eromheen een *agentic loop*.
+A third mode puts a Claude agent on the opened volume. You ask a question in
+plain language — "look in /var/log for why the network didn't come up" — and
+the model calls the tools it needs by itself. That pattern is called *tool
+use*; the loop around it an *agentic loop*.
 
-De tool surface:
+The tool surface:
 
-| Tool | Doet | Wijzigt |
+| Tool | Does | Modifies |
 |---|---|---|
-| `list_dir` | mapinhoud tonen | nee |
-| `read_file` | bestand lezen, gepagineerd, binair wordt gemeld niet gedumpt | nee |
-| `find` | bestandsnamen zoeken in de boom | nee |
-| `grep` | regels zoeken in tekstbestanden, met bestand en regelnummer | nee |
-| `stat` | grootte, rechten, wijzigingsdatum | nee |
-| `write_file` | volledige inhoud van een bestand vervangen | **ja** |
-| `make_dir` | map aanmaken | **ja** |
-| `delete` | bestand of lege map verwijderen | **ja** |
+| `list_dir` | list directory contents | no |
+| `read_file` | read a file, paginated; binary is reported, not dumped | no |
+| `find` | search file names in the tree | no |
+| `grep` | search lines in text files, with file and line number | no |
+| `stat` | size, permissions, modification time | no |
+| `write_file` | replace the full contents of a file | **yes** |
+| `make_dir` | create a directory | **yes** |
+| `delete` | delete a file or empty directory | **yes** |
 
-Voor het diagnosewerk waar dit vooral voor bedoeld is, zijn de leestools daarop
-toegesneden:
+The read tools are tailored to the diagnostic work this is mostly meant for:
 
-- `read_file` neemt een `tail`-argument. Logs groeien aan het eind, dus de
-  storing staat achteraan; vooruit paginaeren door een syslog van 200 MB is
-  geen werkbare manier om te zoeken.
-- Geroteerde logs (`dmesg.4.gz`) worden automatisch uitgepakt. Zonder dat zien
-  ze eruit als binair en verdwijnt stilzwijgend alle geschiedenis van vóór het
-  huidige bestand.
-- `grep` slaat grote bestanden niet over maar doorzoekt hun staart, en markeert
-  de regelnummers dan als bij benadering.
-- De systemd-journal (`/var/log/journal`) is een binair formaat dat deze tool
-  niet kan decoderen. In plaats van "binair bestand" krijgt het model te horen
-  wát het is en waar de tekstlogs staan, zodat het antwoord dat kan doorgeven.
+- `read_file` takes a `tail` argument. Logs grow at the end, so the failure is
+  at the back; paging forward through a 200 MB syslog is not a workable way to
+  search.
+- Rotated logs (`dmesg.4.gz`) are decompressed automatically. Without that they
+  look binary and all history before the current file silently disappears.
+- `grep` does not skip large files but searches their tail, and then marks the
+  line numbers as approximate.
+- The systemd journal (`/var/log/journal`) is a binary format this tool cannot
+  decode. Instead of "binary file", the model is told *what* it is and where the
+  text logs are, so its answer can pass that on.
 
-Standaard is de schijf alleen-lezen en worden de drie schrijftools **niet eens
-aan het model getoond** — het kan er dus niet naar grijpen. Pas als je
-*Wijzigen toestaan* aanzet wordt het medium heropend in schrijfmodus en komen ze
-beschikbaar. Elke aanroep verschijnt in het gesprek, wijzigende aanroepen rood
-gemarkeerd, met de volledige uitkomst uitklapbaar.
+By default the disk is read-only and the three write tools are **not even shown
+to the model** — so it cannot reach for them. Only when you turn on *Allow
+edits* is the medium reopened in write mode and do they become available. Every
+call appears in the conversation, modifying calls highlighted in red, with the
+full result expandable.
 
-Een sleutel is nodig: `ANTHROPIC_API_KEY` in je omgeving, of eenmalig invullen
-in de app, waarna hij in je gebruikersconfiguratie staat met rechten `0600`.
+A key is required: `ANTHROPIC_API_KEY` in your environment, or entered once in
+the app, after which it is stored in your user configuration with mode `0600`.
 
-### Reservekopie vóór wijzigen
+### Backup before editing
 
-*Wijzigen toestaan* schakelt niet meteen om, maar opent eerst een poort die
-aanbiedt een volledige kopie van het medium te maken — kaart of image, één knop,
-met verificatie achteraf. Doorgaan zonder kopie kan wel, maar vereist een
-expliciet vinkje; het is jouw medium. Is er eenmaal een kopie, dan onthoudt de
-app waar die staat en noemt hem in de waarschuwingsbalk zolang schrijven aan
-staat.
+*Allow edits* does not switch over immediately, but first opens a gate that
+offers to make a full copy of the medium — card or image, one button, verified
+afterwards. Continuing without a copy is possible but requires an explicit
+checkbox; it is your medium. Once a copy exists, the app remembers where it is
+and names it in the warning bar for as long as writing is enabled.
 
-Die stap staat er niet voor de vorm. De ext4-schrijfroutine van go-diskfs is
-aanzienlijk minder beproefd dan de leesroutine, en in die leesroutine vonden we
-vier bugs. Gaat er iets mis, dan schrijf je de kopie gewoon terug — dat pad is
-getest.
+That step is not there for show. The ext4 write path in go-diskfs is far less
+proven than the read path, and we found four bugs in that read path. If
+something goes wrong, you simply write the copy back — that path is tested.
 
-## Talen (i18n)
+## Languages (i18n)
 
-De interface is Engels, Nederlands en Duits; de taal is te kiezen rechtsboven en
-wordt onthouden. **Engels is de standaard** — ook op een Nederlandstalig
-systeem. De terminologie waar deze app mee werkt (partitietabel, superblock,
-filesystem) is in elke naslagbron Engels, en een andere taal hoort een bewuste
-keuze te zijn in plaats van een gevolg van de machine waarop hij toevallig
-draait.
+The interface is available in English, Dutch and German; the language can be
+picked in the top right and is remembered. **English is the default** — even
+on a Dutch-language system. The terminology this app deals with (partition
+table, superblock, filesystem) is English in every reference, and another
+language should be a deliberate choice rather than a consequence of the machine
+it happens to run on.
 
-De catalogi staan in [frontend/src/i18n/](frontend/src/i18n/):
+The catalogs live in [frontend/src/i18n/](frontend/src/i18n/):
 
-| Bestand | Rol |
+| File | Role |
 |---|---|
-| `en.ts` | de Engelse teksten én de vorm waar elke taal aan moet voldoen |
-| `nl.ts`, `de.ts` | Nederlands en Duits, beide getypeerd als `Messages` |
-| `index.ts` | context, `useT()`-hook, taalkeuze en opslag |
+| `en.ts` | the English strings and the shape every language must match |
+| `nl.ts`, `de.ts` | Dutch and German, both typed as `Messages` |
+| `index.ts` | context, `useT()` hook, language choice and persistence |
 
-Een taal toevoegen is één bestand naast `nl.ts` plus een regel in `locales`.
-Omdat elke catalogus als `Messages` getypeerd is, is een ontbrekende of
-verkeerd gespelde sleutel een **buildfout**, geen gat in de UI. Hetzelfde geldt
-voor de lijst met voorbeeldvragen: die is een tuple van vaste lengte, dus een
-vraag toevoegen in één taal en vergeten in een andere loopt vast op `tsc`.
+Adding a language is one file next to `nl.ts` plus a line in `locales`.
+Because every catalog is typed as `Messages`, a missing or misspelled key is a
+**build error**, not a hole in the UI. The same goes for the list of example
+questions: it is a fixed-length tuple, so adding a question in one language and
+forgetting it in another fails `tsc`.
 
-Teksten met variabelen zijn functies in plaats van sjablonen met plaatshouders,
-zodat de woordvolgorde aan de vertaler is en niet aan de Engelse zinsbouw.
+Strings with variables are functions rather than templates with placeholders,
+so word order is up to the translator and not to English sentence structure.
 
-De backend heeft een eigen catalogus in [internal/i18n/](internal/i18n/), want
-foutmeldingen worden daar geformuleerd. De frontend geeft de taalkeuze door met
-`SetLocale`, zodat beide helften dezelfde taal spreken. De twee catalogi
-overlappen niet: de frontend doet de interface, Go de meldingen.
+The backend has its own catalog in [internal/i18n/](internal/i18n/), because
+error messages are worded there. The frontend passes the language choice on
+with `SetLocale`, so both halves speak the same language. The two catalogs do
+not overlap: the frontend does the interface, Go the messages.
 
-Go kan een ontbrekend veld niet als buildfout aanmerken zoals TypeScript, dus
-dat gat wordt gedicht door een test die met reflectie over `Messages` loopt en
-controleert dat elke taal elk veld heeft, dat geen enkele melding leeg is, en
-dat geen enkele Nederlandse tekst identiek is aan de Engelse — dat laatste is
-vrijwel altijd een vergeten vertaling.
+Go cannot flag a missing field as a build error the way TypeScript can, so that
+gap is closed by a test that walks `Messages` with reflection and checks that
+every language has every field, that no message is empty, and that no Dutch
+string is identical to the English one — the latter is almost always a
+forgotten translation.
 
-Ook aan Go-zijde **niet** vertaald: meldingen die uit de filesystem-drivers
-komen (`invalid checksum type 0`, `resource busy`). Die zijn diagnostisch in
-plaats van bruikbaar, ze zijn zo op te zoeken, en de tekst van een externe
-library herschrijven maakt dat alleen moeilijker. Ze reizen mee als detail
-naast een vertaalde uitleg:
+Also **not** translated on the Go side: messages coming from the filesystem
+drivers (`invalid checksum type 0`, `resource busy`). They are diagnostic
+rather than actionable, they are easy to look up as-is, and rewriting the text
+of an external library only makes that harder. They travel along as a detail
+next to a translated explanation:
 
 ```
-geen toestemming om /dev/rdisk4 te lezen: start deze applicatie als root
-of Administrator (open /dev/rdisk4: permission denied)
+no permission to read /dev/rdisk4: run this application as root or
+Administrator (open /dev/rdisk4: permission denied)
 ```
 
-## Gepatchte go-diskfs
+## Patched go-diskfs
 
-`vendor/` bevat een gepatchte go-diskfs v1.9.4. Drie checksum-controles in de
-ext4-reader gingen ervan uit dat het `metadata_csum`-feature aanstaat, terwijl
-elke kaart die met een oudere `mkfs.ext4` is gemaakt dat feature niet heeft — en
-dat is het merendeel van de kaarten in het veld. Zonder de patches faalt zo'n
-volume met `invalid checksum type 0`.
+`vendor/` contains a patched go-diskfs v1.9.4. Three checksum checks in the
+ext4 reader assumed the `metadata_csum` feature is enabled, while every card
+created with an older `mkfs.ext4` does not have that feature — and that is the
+majority of cards in the field. Without the patches such a volume fails with
+`invalid checksum type 0`.
 
-De patch staat in [patches/](patches/) en raakt drie plekken:
+The patch is in [patches/](patches/) and touches four files:
 
-| Bestand | Probleem |
+| File | Problem |
 |---|---|
-| `superblock.go` | `s_checksum_type` werd onvoorwaardelijk afgekeurd als hij niet 1 is, terwijl het veld zonder `metadata_csum` betekenisloos is en verderop nooit meer wordt gelezen |
-| `groupdescriptors.go` | de CRC16-variant voor `gdt_csum` is verkeerd geïmplementeerd (verkeerde CRC-16-variant, verkeerde seed, en de checksum wordt over zijn eigen veld berekend), dus elke descriptor mismatcht |
-| `inode.go` | inode-checksums werden altijd geverifieerd; elke naburige controle in dat bestand is wél op `metadata_csum` afgeschermd, deze niet |
-| `directoryentry.go` | `Info()` gaf alleen de type-bits terug, waardoor elk bestand als `----------` verscheen; de rechten worden er wel degelijk uit de inode geparsed |
+| `superblock.go` | `s_checksum_type` was rejected unconditionally if it is not 1, while the field is meaningless without `metadata_csum` and is never read again further on |
+| `groupdescriptors.go` | the CRC16 variant for `gdt_csum` is implemented incorrectly (wrong CRC-16 variant, wrong seed, and the checksum is computed over its own field), so every descriptor mismatches |
+| `inode.go` | inode checksums were always verified; every neighbouring check in that file is gated on `metadata_csum`, this one was not |
+| `directoryentry.go` | `Info()` returned only the type bits, so every file showed up as `----------`; the permissions are in fact parsed from the inode |
 
-Filesystems die `metadata_csum` wél gebruiken worden onverminderd volledig
-geverifieerd, dus echte corruptie wordt nog steeds gevonden.
+Filesystems that do use `metadata_csum` are still fully verified, so real
+corruption is still detected.
 
-Na het wijzigen van dependencies niet `go mod vendor` draaien maar:
+After changing dependencies, do not run `go mod vendor` but:
 
 ```sh
 ./scripts/vendor.sh
 ```
 
-Dat vendort opnieuw en zet de patches er weer overheen.
+That re-vendors and applies the patches on top again.
 
-## Ontwikkelen
+## Development
 
 ```sh
 wails dev      # live reload
-wails build    # productiebuild in build/bin
-go test ./...  # backend-tests
+wails build    # production build in build/bin
+go test ./...  # backend tests
 ```
 
-De tests bouwen zelf een GPT-image met een FAT32-boot- en een ext4-rootpartitie,
-dus er is geen kaart nodig om ze te draaien. Een sample-image voor de GUI:
+The tests build their own GPT image with a FAT32 boot and an ext4 root
+partition, so no card is needed to run them. A sample image for the GUI:
 
 ```sh
 SAMPLE_IMAGE=/tmp/card.img go test -run TestWriteSampleImage ./internal/volume/
 ```
 
-Een echte kaart of image erdoorheen halen, met een verslag van wat er gevonden
-en gelezen kon worden:
+Run a real card or image through it, with a report of what could be found and
+read:
 
 ```sh
 REAL_IMAGE=~/card.img go test -v -run TestRealImage ./internal/volume/
 ```
 
-## Zelf bouwen
+## Building from source
 
-Benodigd:
+Requirements:
 
-- [Go](https://go.dev/dl/) 1.25 of nieuwer
-- [Node.js](https://nodejs.org/) 20 of nieuwer
+- [Go](https://go.dev/dl/) 1.25 or newer
+- [Node.js](https://nodejs.org/) 20 or newer
 - [Wails](https://wails.io/docs/gettingstarted/installation) v2.15:
   `go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0`
-- Platformspecifiek: op macOS de Xcode command line tools
-  (`xcode-select --install`); op Linux `libgtk-3-dev` en `libwebkit2gtk-4.0-dev`
-  (of `-4.1` met `-tags webkit2_41`); op Windows niets extra's, behalve
-  [NSIS](https://nsis.sourceforge.io/) als je de installer wilt bouwen.
+- Platform specific: on macOS the Xcode command line tools
+  (`xcode-select --install`); on Linux `libgtk-3-dev` and
+  `libwebkit2gtk-4.0-dev` (or `-4.1` with `-tags webkit2_41`); on Windows
+  nothing extra, except [NSIS](https://nsis.sourceforge.io/) if you want to
+  build the installer.
 
-`wails doctor` controleert of alles aanwezig is.
+`wails doctor` checks that everything is in place.
 
 ```sh
 git clone https://github.com/baslentfert/bbsdcardsniffer.git
 cd bbsdcardsniffer
 wails build                              # → build/bin/
-wails build -platform darwin/universal   # macOS: Intel + Apple Silicon in één app
+wails build -platform darwin/universal   # macOS: Intel + Apple Silicon in one app
 wails build -nsis -webview2 embed        # Windows: exe + installer
 ```
 
-Dependencies zitten in `vendor/` (met patches, zie
-[Gepatchte go-diskfs](#gepatchte-go-diskfs)), dus de Go-build heeft geen
-internet nodig; `npm install` voor de frontend wel.
+Dependencies are in `vendor/` (with patches, see
+[Patched go-diskfs](#patched-go-diskfs)), so the Go build needs no network;
+`npm install` for the frontend does.
 
-## Een release maken
+## Making a release
 
-Releases worden gebouwd door GitHub Actions
-([.github/workflows/release.yml](.github/workflows/release.yml)). Een tag
-pushen is genoeg:
+Releases are built by GitHub Actions
+([.github/workflows/release.yml](.github/workflows/release.yml)). Pushing a tag
+is enough:
 
 ```sh
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
-De workflow draait de tests, bouwt de macOS-`.dmg` (universal) op een macOS
-runner en de Windows-exe plus NSIS-installer op een Windows runner, en zet ze
-op een nieuwe release met automatisch gegenereerde release notes. Het
-versienummer uit de tag komt in `Info.plist` en de exe-metadata terecht.
+The workflow builds the macOS `.dmg` (universal) on a macOS runner and the
+Windows exe plus NSIS installer on a Windows runner, runs the tests, and
+attaches the files to a new release with automatically generated release
+notes. The version number from the tag ends up in `Info.plist` and the exe
+metadata.
 
-Handmatig starten via **Actions → release → Run workflow** bouwt alleen de
-artefacten (te downloaden bij de run), zonder release.
+Starting it manually via **Actions → release → Run workflow** only builds the
+artifacts (downloadable from the run), without a release.
 
-De builds zijn niet ondertekend. Voor ondertekening zijn een Apple Developer ID
-(plus notarisatie) en een Windows code-signing-certificaat nodig; daarmee
-verdwijnen de Gatekeeper- en SmartScreen-waarschuwingen.
+The builds are not signed. Signing requires an Apple Developer ID (plus
+notarization) and a Windows code-signing certificate; with those, the
+Gatekeeper and SmartScreen warnings go away.
 
-## Opbouw
+## Layout
 
-| Pad | Rol |
+| Path | Role |
 |---|---|
-| [app.go](app.go) | de methodes die aan de frontend gebonden zijn |
-| [internal/blockdev/](internal/blockdev/) | ruwe device-toegang met sector-aligned reads en een blokcache |
-| [internal/device/](internal/device/) | schijfoverzicht per platform (`diskutil`, `lsblk`, `Get-Disk`) |
-| [internal/volume/](internal/volume/) | partitietabel, filesystem-herkenning, bladeren en exporteren |
-| [internal/imaging/](internal/imaging/) | klonen, schrijven, decompressie en voortgang — het enige dat naar een apparaat schrijft |
-| [internal/assistant/](internal/assistant/) | de Claude-agent: tool surface en de agentic loop |
-| [internal/config/](internal/config/) | opslag van de API-sleutel |
-| [assistant.go](assistant.go) | de assistent-methodes die aan de frontend gebonden zijn |
-| [transfer.go](transfer.go) | de kloon- en schrijfmethodes die aan de frontend gebonden zijn |
-| [frontend/src/](frontend/src/) | React-UI: apparatenlijst, volumetabs, bestandsbrowser, hex/tekst-preview |
+| [app.go](app.go) | the methods bound to the frontend |
+| [internal/blockdev/](internal/blockdev/) | raw device access with sector-aligned reads and a block cache |
+| [internal/device/](internal/device/) | disk listing per platform (`diskutil`, `lsblk`, `Get-Disk`) |
+| [internal/volume/](internal/volume/) | partition table, filesystem detection, browsing and exporting |
+| [internal/imaging/](internal/imaging/) | cloning, writing, decompression and progress — the only thing that writes to a device |
+| [internal/assistant/](internal/assistant/) | the Claude agent: tool surface and the agentic loop |
+| [internal/config/](internal/config/) | API key storage |
+| [assistant.go](assistant.go) | the assistant methods bound to the frontend |
+| [transfer.go](transfer.go) | the clone and write methods bound to the frontend |
+| [frontend/src/](frontend/src/) | React UI: device list, volume tabs, file browser, hex/text preview |
 
-`internal/blockdev` opent standaard alleen-lezen en zijn `Writable()` weigert
-dan; schrijven vereist expliciet `OpenReadWrite`. Rauwe apparaten accepteren
-alleen hele sectoren, dus een gedeeltelijke schrijfactie wordt een
-read-modify-write van de omliggende sectoren, met invalidatie van de blokcache.
+`internal/blockdev` opens read-only by default and its `Writable()` then
+refuses; writing requires an explicit `OpenReadWrite`. Raw devices only accept
+whole sectors, so a partial write becomes a read-modify-write of the
+surrounding sectors, with invalidation of the block cache.
 
-De aligned-read-laag in `internal/blockdev` is niet optioneel: `/dev/rdiskN` op
-macOS en `\\.\PhysicalDriveN` op Windows weigeren reads die niet op een sector
-uitgelijnd zijn, terwijl de filesystem-drivers op willekeurige offsets lezen.
+The aligned-read layer in `internal/blockdev` is not optional: `/dev/rdiskN` on
+macOS and `\\.\PhysicalDriveN` on Windows reject reads that are not
+sector-aligned, while the filesystem drivers read at arbitrary offsets.
 
-## Componenten van derden
+## Third-party components
 
-De licenties van alle meegeleverde Go- en npm-dependencies staan in
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); opnieuw genereren met
-`./scripts/notices.sh`. Het Nunito-lettertype valt onder de
+The licenses of all bundled Go and npm dependencies are in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); regenerate with
+`./scripts/notices.sh`. The Nunito font is licensed under the
 [SIL Open Font License](frontend/src/assets/fonts/OFL.txt).
