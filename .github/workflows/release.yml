@@ -1,0 +1,100 @@
+name: release
+
+# Push a tag like v1.0.0 to build the macOS .dmg and the Windows installer and
+# attach them to a GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  WAILS_VERSION: v2.15.0
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin/universal
+          - os: windows-latest
+            platform: windows/amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_TYPE" == tag ]] || v="0.0.0-dev"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          # Wails reads info.productVersion into Info.plist and the exe metadata
+          node -e 'const f="wails.json",j=JSON.parse(require("fs").readFileSync(f));j.info={...j.info,productVersion:process.argv[1]};require("fs").writeFileSync(f,JSON.stringify(j,null,2))' "$v"
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          wails build -clean -platform ${{ matrix.platform }}
+          mkdir -p dist dmg
+          cp -R build/bin/bbsdcardsniffer.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "SD Card Sniffer" -srcfolder dmg -ov -format UDZO \
+            "dist/bbsdcardsniffer-${{ steps.version.outputs.version }}-macos-universal.dmg"
+
+      - name: Install NSIS
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install nsis -y
+          echo "C:/Program Files (x86)/NSIS" >> "$GITHUB_PATH"
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          wails build -clean -platform ${{ matrix.platform }} -nsis -webview2 embed
+          mkdir -p dist
+          v=${{ steps.version.outputs.version }}
+          cp build/bin/bbsdcardsniffer.exe "dist/bbsdcardsniffer-$v-windows-amd64.exe"
+          cp build/bin/*installer.exe "dist/bbsdcardsniffer-$v-windows-amd64-setup.exe"
+
+      # after the build: main.go embeds frontend/dist
+      - name: Test
+        run: go test ./...
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ runner.os }}
+          path: dist/*
+
+  release:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
